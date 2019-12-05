@@ -1,9 +1,7 @@
 require "rspec"
 
 def closest_intersection(intersections)
-  intersections.map do |intersection|
-    intersection.x.abs + intersection.y.abs
-  end.min
+  intersections.map(&:manhattan_distance).min
 end
 
 def closest_intersection2(intersections, wire_paths)
@@ -77,6 +75,10 @@ class Line
 end
 
 Point = Struct.new(:x, :y) do
+  def manhattan_distance
+    x.abs + y.abs
+  end
+
   def to_s
     "(#{x}, #{y})"
   end

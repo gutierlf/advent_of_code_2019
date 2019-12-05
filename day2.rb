@@ -1,32 +1,19 @@
 require 'rspec'
 
-def add(input1, input2, output, intcode)
-  new_intcode = intcode.dup
-  new_intcode[output] = new_intcode[input1] + new_intcode[input2]
-  new_intcode
-end
-
-def multiply(input1, input2, output, intcode)
-  new_intcode = intcode.dup
-  new_intcode[output] = new_intcode[input1] * new_intcode[input2]
-  new_intcode
-end
-
 def process_intcode(intcode_in)
   intcode = intcode_in.dup
   instruction_length = 4
   instruction_start = 0
   loop do
-    opcode, *args =
+    opcode, *inputs, output =
       intcode[instruction_start...(instruction_start + instruction_length)]
     break if opcode == 99
-    intcode =
+    op =
       case opcode
-      when 1
-        add(*args, intcode)
-      when 2
-        multiply(*args, intcode)
+      when 1 then :+
+      when 2 then :*
       end
+    intcode[output] = inputs.map { |i| intcode[i] }.reduce(op)
     instruction_start += instruction_length
   end
   intcode

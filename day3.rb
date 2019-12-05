@@ -1,36 +1,45 @@
-require "set"
 require "rspec"
 
-class Parser
-  attr_reader :path_spec
+def closest_intersection(intersections)
+  intersections.map do |intersection|
+    intersection.x.abs + intersection.y.abs
+  end.min
+end
 
-  def initialize(path_spec)
-    @path_spec = path_spec
+def closest_intersection2(intersections, wire_paths)
+  intersections.map do |intersection|
+    wire_paths.map do |wire_path|
+      wire_path.points_to_steps[intersection]
+    end.reduce(:+)
+  end.min
+end
+
+def intersections(wire_paths)
+  wire_paths.map do |wire_path|
+    wire_path.points.drop(1)
+  end.reduce(:&)
+end
+
+class WirePath
+  attr_reader :line_specs, :points_to_steps
+
+  def initialize(line_specs)
+    @line_specs = line_specs
+    @points_to_steps = compute_points_to_steps
   end
 
-  def parse
-    path_spec.split(",").map { |line_spec| axis_and_length(line_spec) }
+  def points
+    points_to_steps.keys
   end
 
   private
 
-  LINE_SPEC_REGEX = /([RLUD])(\d+)/
-
-  def axis_and_length(line_spec)
-    axis, length = LINE_SPEC_REGEX.match(line_spec).captures
-    length = length.to_i
-    case axis
-    when "R" then [:x, length]
-    when "L" then [:x, -length]
-    when "U" then [:y, length]
-    when "D" then [:y, -length]
+  def compute_points_to_steps
+    @line_specs.reduce({Point.new(0, 0) => 0}) do |points_to_steps, line_spec|
+      points = Line.new(points_to_steps.keys.last, line_spec).points
+      new_points_to_steps = points.zip(points_to_steps.length...points.length + points_to_steps.length).to_h
+      points_to_steps.merge(new_points_to_steps) { |_, old_val| old_val }
     end
-  end
-end
-
-Point = Struct.new(:x, :y) do
-  def to_s
-    "(#{x}, #{y})"
   end
 end
 
@@ -67,99 +76,37 @@ class Line
   end
 end
 
-class WirePath
-  attr_reader :line_specs, :points_to_steps
+Point = Struct.new(:x, :y) do
+  def to_s
+    "(#{x}, #{y})"
+  end
+end
 
-  def initialize(line_specs)
-    @line_specs = line_specs
-    @points_to_steps = compute_points_to_steps
+class Parser
+  attr_reader :path_spec
+
+  def initialize(path_spec)
+    @path_spec = path_spec
   end
 
-  def points
-    points_to_steps.keys
+  def parse
+    path_spec.split(",").map { |line_spec| axis_and_length(line_spec) }
   end
 
   private
 
-  def compute_points_to_steps
-    @line_specs.reduce({Point.new(0, 0) => 0}) do |points_to_steps, line_spec|
-      points = Line.new(points_to_steps.keys.last, line_spec).points
-      new_points_to_steps = points.zip(points_to_steps.length...points.length + points_to_steps.length).to_h
-      points_to_steps.merge(new_points_to_steps) { |_, old_val| old_val }
+  LINE_SPEC_REGEX = /([RLUD])(\d+)/
+
+  def axis_and_length(line_spec)
+    axis, length = LINE_SPEC_REGEX.match(line_spec).captures
+    length = length.to_i
+    case axis
+    when "R" then [:x, length]
+    when "L" then [:x, -length]
+    when "U" then [:y, length]
+    when "D" then [:y, -length]
     end
   end
-end
-
-class WirePathPrinter
-  attr_reader :points_to_chars
-
-  def initialize(wire_paths)
-    @points_to_chars = wire_paths
-      .map { |wire_path| points_to_chars_for(wire_path) }
-      .reduce { |acc, cur| acc.merge(cur) { "X" } }
-    @points_to_chars[Point.new(0, 0)] = "o"
-  end
-
-  def pretty_print
-    x_min, x_max, y_min, y_max = bounding_box
-    width = x_max - x_min + 1
-    height = y_max - y_min + 1
-    grid = Array.new(height) { Array.new(width) { "." } }
-    points_to_chars.each do |point, char|
-      row = point.y - y_min
-      col = point.x - x_min
-      grid[row][col] = char
-    end
-    puts grid.reverse.map { |row| row.join("") }.join("\n")
-  end
-
-  private
-
-  def points_to_chars_for(wire_path)
-    index = 0
-    wire_path.line_specs.reduce([[Point.new(0, 0), "o"]]) do |h, line_spec|
-      char = /[LR]/ =~ line_spec[0] ? "-" : "|"
-      points = Line.new(h.last[0], line_spec).points
-      end_element =
-        if index < wire_path.line_specs.length - 1
-          [[points.pop, "+"]]
-        else
-          []
-        end
-      index += 1
-      h + points.map { |p| [p, char] } + end_element
-    end.to_h
-  end
-
-  def bounding_box
-    xs = points.map(&:x)
-    ys = points.map(&:y)
-    [xs.min, xs.max, ys.min, ys.max]
-  end
-
-  def points
-    points_to_chars.keys
-  end
-end
-
-def intersections(wire_paths)
-  wire_paths.map do |wire_path|
-    wire_path.points.drop(1)
-  end.reduce(:&)
-end
-
-def closest_intersection(intersections)
-  intersections.map do |intersection|
-    intersection.x.abs + intersection.y.abs
-  end.min
-end
-
-def closest_intersection2(intersections, wire_paths)
-  intersections.map do |intersection|
-    wire_paths.map do |wire_path|
-      wire_path.points_to_steps[intersection]
-    end.reduce(:+)
-  end.min
 end
 
 RSpec.describe "day 3" do
@@ -210,6 +157,58 @@ RSpec.describe "day 3" do
         end
       end
     end
+  end
+end
+
+class WirePathPrinter
+  attr_reader :points_to_chars
+
+  def initialize(wire_paths)
+    @points_to_chars = wire_paths
+                         .map { |wire_path| points_to_chars_for(wire_path) }
+                         .reduce { |acc, cur| acc.merge(cur) { "X" } }
+    @points_to_chars[Point.new(0, 0)] = "o"
+  end
+
+  def pretty_print
+    x_min, x_max, y_min, y_max = bounding_box
+    width = x_max - x_min + 1
+    height = y_max - y_min + 1
+    grid = Array.new(height) { Array.new(width) { "." } }
+    points_to_chars.each do |point, char|
+      row = point.y - y_min
+      col = point.x - x_min
+      grid[row][col] = char
+    end
+    puts grid.reverse.map { |row| row.join("") }.join("\n")
+  end
+
+  private
+
+  def points_to_chars_for(wire_path)
+    index = 0
+    wire_path.line_specs.reduce([[Point.new(0, 0), "o"]]) do |h, line_spec|
+      char = /[LR]/ =~ line_spec[0] ? "-" : "|"
+      points = Line.new(h.last[0], line_spec).points
+      end_element =
+        if index < wire_path.line_specs.length - 1
+          [[points.pop, "+"]]
+        else
+          []
+        end
+      index += 1
+      h + points.map { |p| [p, char] } + end_element
+    end.to_h
+  end
+
+  def bounding_box
+    xs = points.map(&:x)
+    ys = points.map(&:y)
+    [xs.min, xs.max, ys.min, ys.max]
+  end
+
+  def points
+    points_to_chars.keys
   end
 end
 

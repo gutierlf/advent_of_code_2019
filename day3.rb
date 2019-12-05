@@ -1,6 +1,33 @@
 require "set"
 require "rspec"
 
+class Parser
+  attr_reader :path_spec
+
+  def initialize(path_spec)
+    @path_spec = path_spec
+  end
+
+  def parse
+    path_spec.split(",").map { |line_spec| axis_and_length(line_spec) }
+  end
+
+  private
+
+  LINE_SPEC_REGEX = /([RLUD])(\d+)/
+
+  def axis_and_length(line_spec)
+    axis, length = LINE_SPEC_REGEX.match(line_spec).captures
+    length = length.to_i
+    case axis
+    when "R" then [:x, length]
+    when "L" then [:x, -length]
+    when "U" then [:y, length]
+    when "D" then [:y, -length]
+    end
+  end
+end
+
 Point = Struct.new(:x, :y) do
   def to_s
     "(#{x}, #{y})"
@@ -10,16 +37,14 @@ end
 class Line
   attr_reader :points
 
-  def initialize(from, line_spec)
-    @from, @line_spec = from, line_spec
+  def initialize(from, axis_and_length)
+    @from, @axis_and_length = from, axis_and_length
     @points = compute_points
   end
 
   private
 
-  attr_reader :from, :line_spec
-
-  LINE_SPEC_REGEX = /([RLUD])(\d+)/
+  attr_reader :from, :axis_and_length
 
   def compute_points
     axis, range = axis_and_range
@@ -40,24 +65,13 @@ class Line
     range = (start + one).send(op, start + length)
     [axis, range]
   end
-
-  def axis_and_length
-    axis, length = LINE_SPEC_REGEX.match(line_spec).captures
-    length = length.to_i
-    case axis
-    when "R" then [:x, length]
-    when "L" then [:x, -length]
-    when "U" then [:y, length]
-    when "D" then [:y, -length]
-    end
-  end
 end
 
 class WirePath
   attr_reader :line_specs, :points_to_steps
 
-  def initialize(path_spec)
-    @line_specs = path_spec.split(",")
+  def initialize(line_specs)
+    @line_specs = line_specs
     @points_to_steps = compute_points_to_steps
   end
 
@@ -168,7 +182,9 @@ RSpec.describe "day 3" do
     }
     let(:all_wire_paths) {
       all_path_specs.map do |path_specs|
-        path_specs.map { |path_spec| WirePath.new(path_spec) }
+        path_specs.map do |path_spec|
+          WirePath.new(Parser.new(path_spec).parse)
+        end
       end
     }
     let(:all_intersections) {
@@ -198,7 +214,9 @@ RSpec.describe "day 3" do
 end
 
 if __FILE__ == $0
-  path_specs = File.readlines("day3_input.txt").map(&:chomp)
+  path_specs = File.readlines("day3_input.txt").map(&:chomp).map do |line|
+    Parser.new(line).parse
+  end
   wire_paths = path_specs.map { |p| WirePath.new(p) }
   intersections = intersections(wire_paths)
   answer1 = closest_intersection(intersections)

@@ -65,31 +65,18 @@ class MeasuredPoints
   end
 
   def &(other)
-    longer, shorter = (length >= other.length) ? [self, other] : [other, self]
-    shorter.reduce([]) do |intersections, (point, steps)|
-      if longer.include?(point)
-        intersections << MeasuredPoint.new(point, steps + longer.steps_for(point))
-      else
-        intersections
-      end
+    (points & other.points).map do |point|
+      MeasuredPoint.new(point, steps_for(point) + other.steps_for(point))
     end
   end
 
-  def include?(point)
-    points.include?(point)
-  end
-
-  def reduce(init, &block)
-    data.reduce(init, &block)
+  def points
+    data.keys
   end
 
   private
 
   attr_reader :data
-
-  def points
-    data.keys
-  end
 end
 
 class Line
@@ -280,11 +267,22 @@ class WirePathPrinter
 end
 
 if __FILE__ == $0
-  path_specs = File.readlines("day3_input.txt").map(&:chomp).map do |line|
-    Parser.new(line).parse
+  def timed(prefix)
+    start = Time.now
+    result = yield
+    elapsed = Time.now - start
+    puts "#{prefix} in #{elapsed} seconds"
+    result
   end
-  wire_paths = path_specs.map { |p| WirePath.new(p) }
-  intersections = intersections(wire_paths)
+  path_specs = timed("parsed input") do
+    File.readlines("day3_input.txt").map(&:chomp).map do |line|
+      Parser.new(line).parse
+    end
+  end
+  wire_paths = timed("build wire paths") { path_specs.map { |p| WirePath.new(p) } }
+  intersections = timed("computed intersections") { intersections(wire_paths) }
+  puts "#{intersections.length} intersections"
+  puts intersections
   answer1 = closest_intersection(intersections)
   puts answer1
 

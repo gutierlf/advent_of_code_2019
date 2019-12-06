@@ -5,11 +5,7 @@ def closest_intersection(intersections)
 end
 
 def closest_intersection2(intersections, wire_paths)
-  intersections.map do |intersection|
-    wire_paths.map do |wire_path|
-      wire_path.points_to_steps[intersection]
-    end.reduce(:+)
-  end.min
+  intersections.map(&:steps).min
 end
 
 def intersections(wire_paths)
@@ -19,25 +15,80 @@ def intersections(wire_paths)
 end
 
 class WirePath
-  attr_reader :line_specs, :points_to_steps
+  attr_reader :line_specs, :measured_points
 
   def initialize(line_specs)
     @line_specs = line_specs
-    @points_to_steps = compute_points_to_steps
+    @measured_points = compute_measured_points
   end
 
   def points
-    points_to_steps.keys
+    measured_points
   end
 
   private
 
-  def compute_points_to_steps
-    @line_specs.reduce({Point.new(0, 0) => 0}) do |points_to_steps, line_spec|
-      points = Line.new(points_to_steps.keys.last, line_spec).points
-      new_points_to_steps = points.zip(points_to_steps.length...points.length + points_to_steps.length).to_h
-      points_to_steps.merge(new_points_to_steps) { |_, old_val| old_val }
+  def compute_measured_points
+    @line_specs.reduce(MeasuredPoints.new(Point.new(0, 0), 0)) do |measured_points, line_spec|
+      points = Line.new(measured_points.last, line_spec).points
+      steps = (0...points.length).map { |i| i + measured_points.length }
+      measured_points.update(points, steps)
     end
+  end
+end
+
+class MeasuredPoints
+  def initialize(point, steps)
+    @data = {point => steps}
+  end
+
+  def last
+    data.keys.last
+  end
+
+  def length
+    data.length
+  end
+
+  def update(points, steps)
+    @data.merge!(points.zip(steps).to_h) { |_, old_val| old_val }
+    self
+  end
+
+  def steps_for(key)
+    data[key]
+  end
+
+  def drop(n)
+    @data = data.drop(n).to_h
+    self
+  end
+
+  def &(other)
+    longer, shorter = (length >= other.length) ? [self, other] : [other, self]
+    shorter.reduce([]) do |intersections, (point, steps)|
+      if longer.include?(point)
+        intersections << MeasuredPoint.new(point, steps + longer.steps_for(point))
+      else
+        intersections
+      end
+    end
+  end
+
+  def include?(point)
+    points.include?(point)
+  end
+
+  def reduce(init, &block)
+    data.reduce(init, &block)
+  end
+
+  private
+
+  attr_reader :data
+
+  def points
+    data.keys
   end
 end
 
@@ -71,6 +122,20 @@ class Line
     op = length > 0 ? :upto : :downto
     range = (start + one).send(op, start + length)
     [axis, range]
+  end
+end
+
+MeasuredPoint = Struct.new(:point, :steps) do
+  def manhattan_distance
+    x.abs + y.abs
+  end
+
+  def x
+    point.x
+  end
+
+  def y
+    point.y
   end
 end
 

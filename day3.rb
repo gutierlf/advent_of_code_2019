@@ -30,9 +30,9 @@ class WirePath
 
   def compute_measured_points
     @line_specs.reduce(MeasuredPoints.new(Point.new(0, 0), 0)) do |measured_points, line_spec|
-      points = Line.new(measured_points.last, line_spec).points
-      last_steps = measured_points.steps_for(measured_points.last)
-      steps = (1..points.length).map { |i| i + last_steps }
+      last_point = measured_points.last
+      points = Line.new(last_point, line_spec).points
+      steps = (1..points.length).map { |i| i + last_point.steps }
       measured_points.update(points, steps)
     end
   end
@@ -44,11 +44,7 @@ class MeasuredPoints
   end
 
   def last
-    data.keys.last
-  end
-
-  def length
-    data.length
+    MeasuredPoint.new(data.keys.last, data.values.last)
   end
 
   def update(points, steps)

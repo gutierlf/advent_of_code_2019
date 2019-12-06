@@ -31,7 +31,8 @@ class WirePath
   def compute_measured_points
     @line_specs.reduce(MeasuredPoints.new(Point.new(0, 0), 0)) do |measured_points, line_spec|
       points = Line.new(measured_points.last, line_spec).points
-      steps = (0...points.length).map { |i| i + measured_points.length }
+      last_steps = measured_points.steps_for(measured_points.last)
+      steps = (1..points.length).map { |i| i + last_steps }
       measured_points.update(points, steps)
     end
   end
@@ -282,7 +283,6 @@ if __FILE__ == $0
   wire_paths = timed("build wire paths") { path_specs.map { |p| WirePath.new(p) } }
   intersections = timed("computed intersections") { intersections(wire_paths) }
   puts "#{intersections.length} intersections"
-  puts intersections
   answer1 = closest_intersection(intersections)
   puts answer1
 

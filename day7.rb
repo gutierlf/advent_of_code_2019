@@ -1,5 +1,5 @@
 require "rspec"
-require 'logger'
+require "logger"
 
 LOGGER = Logger.new(STDOUT)
 LOGGER.level = Logger::WARN

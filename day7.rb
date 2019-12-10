@@ -27,7 +27,7 @@ def measure_thrust_with_feedback(program, phases)
   while processors.any?(&:running?)
     processor = processors[i % phases.length]
     if processor.running?
-      processor.inputs.unshift(thrust)
+      processor.add_input(thrust)
       thrust = processor.process
     end
     i += 1
@@ -36,8 +36,8 @@ def measure_thrust_with_feedback(program, phases)
 end
 
 class IntcodeProcessor
-  attr_reader :program
-  attr_accessor :pointer, :inputs, :output
+  attr_reader :program, :inputs
+  attr_accessor :pointer, :output
 
   def initialize(program, inputs)
     @program = program.dup
@@ -70,6 +70,10 @@ class IntcodeProcessor
 
   def running?
     !halted?
+  end
+
+  def add_input(input)
+    @inputs.unshift(input)
   end
 
   private

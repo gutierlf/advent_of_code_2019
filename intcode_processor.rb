@@ -27,11 +27,19 @@ class IntcodeProcessor
   end
 
   def process_to_output
-    process { |opcode_data| do_process_to_output(opcode_data) }
+    op = Operation.new(nil)
+    until op.halt? || op.output?
+      op = process_one_instruction
+    end
+    output.last
   end
 
   def process_all
-    process { |opcode_data| do_process_all(opcode_data) }
+    op = Operation.new(nil)
+    until op.halt?
+      op = process_one_instruction
+    end
+    output
   end
 
   def running?
@@ -47,25 +55,15 @@ class IntcodeProcessor
   attr_reader :operations, :halted
   alias :halted? :halted
 
-  def process(&block)
+  def process_one_instruction
     LOGGER.debug self.program
     opcode_data = OpcodeParser.new.parse(program[pointer])
     if opcode_data.opcode == 99
       @halted = true
-      output
+      Halt.new
     else
-      block.call(opcode_data)
+      process_one_op(opcode_data)
     end
-  end
-
-  def do_process_to_output(opcode_data)
-    op = process_one_op(opcode_data)
-    op.is_a?(Output) ? output.last : process_to_output
-  end
-
-  def do_process_all(opcode_data)
-    process_one_op(opcode_data)
-    process_all
   end
 
   def process_one_op(opcode_data)
@@ -123,6 +121,12 @@ class ExtendingArray
   attr_reader :array
 end
 
+class Halt
+  def halt?
+    true
+  end
+end
+
 class Operation
   def initialize(processor)
     @processor = processor
@@ -130,6 +134,14 @@ class Operation
       position: ->(addr) { addr },
       relative: ->(addr) { addr + processor.relative_base}
     }
+  end
+
+  def halt?
+    false
+  end
+
+  def output?
+    false
   end
 
   private
@@ -199,6 +211,10 @@ class Input < Operation
 end
 
 class Output < Operation
+  def output?
+    true
+  end
+
   def arg_length
     1
   end

@@ -14,7 +14,7 @@ end
 
 def measure_thrust(program, phases)
   phases.reduce(0) do |input, phase|
-    IntcodeProcessor.new(program, [input, phase]).process
+    IntcodeProcessor.new(program, [input, phase]).process_to_output
   end
 end
 
@@ -25,7 +25,8 @@ def measure_thrust_with_feedback(program, phases)
     processor = processors[i % phases.length]
     if processor.running?
       processor.add_input(thrust)
-      thrust = processor.process
+      processor.process_to_output
+      thrust = processor.output.last
     end
     i += 1
   end

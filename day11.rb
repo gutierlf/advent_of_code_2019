@@ -1,8 +1,8 @@
 require_relative "intcode_processor"
 
 class PaintingRobot
-  def initialize(program)
-    @processor = IntcodeProcessor.new(program, [0])
+  def initialize(program, start_color)
+    @processor = IntcodeProcessor.new(program, [start_color])
     @visited_panels = [VisitedPanel.new(Point.new(0, 0), :up, nil)]
   end
 
@@ -60,14 +60,54 @@ class PaintingRobot
   end
 end
 
+class PaintingRobotImage
+  def initialize(painted_panels)
+    @pixels = compute_pixels(painted_panels)
+  end
+
+  def show
+    puts to_s
+  end
+
+  def to_s
+    pixels
+      .map { |row| row.map { |pixel| pixel ? "█" : " " }.join("") }
+      .join("\n")
+  end
+
+  private
+
+  attr_reader :pixels
+
+  def compute_pixels(painted_panels)
+    xmin, xmax, ymin, ymax = bounding_box(painted_panels)
+    pixels = Array.new(ymax - ymin + 1) { Array.new(xmax - xmin + 1, false) }
+    painted_panels.each do |location, color|
+      row = location.y - ymin
+      col = location.x - xmin
+      pixels[row][col] = (color == 1) ? true : false
+    end
+    pixels.reverse
+  end
+
+  def bounding_box(painted_panels)
+    xs, ys = painted_panels.keys.map { |p| [p.x, p.y] }.transpose
+    [xs.min, xs.max, ys.min, ys.max]
+  end
+end
+
 VisitedPanel = Struct.new(:location, :heading, :color)
 
 Point = Struct.new(:x, :y)
 
 if __FILE__ == $0
   program = File.read("day11_input.txt").chomp.split(",").map(&:to_i)
-  robot = PaintingRobot.new(program)
+  # robot = PaintingRobot.new(program, 0)
+  # robot.run
+  # answer1 = robot.painted_panels.length
+  # puts answer1
+
+  robot = PaintingRobot.new(program, 1)
   robot.run
-  answer1 = robot.painted_panels.length
-  puts answer1
+  PaintingRobotImage.new(robot.painted_panels).show
 end

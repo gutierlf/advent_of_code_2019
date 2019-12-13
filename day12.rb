@@ -1,8 +1,41 @@
+require "set"
+
+def period(positions)
+  # learned this from alexanderhaupt while watching
+  # https://www.youtube.com/watch?v=vfPwct8QyhM&t=10297s
+  #
+  # code at https://pastebin.com/Jn4ctapx
+  (0..2)
+    .map { |dim| period_by_dimension(positions, dim) }
+    .reduce { |acc, cur| lcm(acc, cur) }
+end
+
+def period_by_dimension(positions, dim)
+  sim = JupiterMoonSimulation.new(positions)
+  state = ->(moons) { moons_list_by_dimension(moons, dim) }
+  history = Set.new
+  loop do
+    this_state = state[sim.moons]
+    break if history.include?(this_state)
+    history << this_state
+    sim.step
+  end
+  history.length
+end
+
+def moons_list_by_dimension(moons, dim)
+  moons.map { |moon| (dim...6).step(3).map { |i| moon.to_a[i] } }.flatten
+end
+
+def lcm(a, b)
+  a * b / a.gcd(b)
+end
+
 class JupiterMoonSimulation
   attr_reader :moons
 
   def initialize(positions)
-    @moons = positions.map.with_index { |p, i| init_moon(i, p) }
+    @moons = positions.map { |p| init_moon(p.dup) }
   end
 
   def step
@@ -16,8 +49,8 @@ class JupiterMoonSimulation
 
   private
 
-  def init_moon(index, position)
-    MoonData.new(index, position, Velocity.new(0, 0, 0))
+  def init_moon(position)
+    MoonData.new(position, Velocity.new(0, 0, 0))
   end
 
   def apply_gravity
@@ -40,13 +73,17 @@ class JupiterMoonSimulation
   end
 end
 
-MoonData = Struct.new(:id, :pos, :vel) do
+MoonData = Struct.new(:pos, :vel) do
   def apply_gravity_towards(other)
     vel.add(*pos.gravity_towards(other.pos))
   end
 
   def total_energy
     potential_energy * kinetic_energy
+  end
+
+  def to_a
+    pos.to_a + vel.to_a
   end
 
   private
@@ -74,6 +111,10 @@ Point = Struct.new(:x, :y, :z) do
     self.class.axes
   end
 
+  def to_a
+    axes.map { |axis| send(axis) }
+  end
+
   def gravity_towards(other)
     axes.map { |axis| gravity_by_axis(axis, other) }
   end
@@ -96,6 +137,10 @@ Velocity = Struct.new(:u, :v, :w) do
 
   def axes
     self.class.axes
+  end
+
+  def to_a
+    axes.map { |axis| send(axis) }
   end
 
   def add(du, dv, dw)
@@ -131,4 +176,7 @@ if __FILE__ == $0
   1000.times { sim.step }
   answer1 = sim.total_energy
   puts answer1
+
+  answer2 = period(positions)
+  puts answer2
 end

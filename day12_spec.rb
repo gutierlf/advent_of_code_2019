@@ -72,6 +72,27 @@ RSpec.describe "day 12" do
       expect(sim.total_energy).to eq 1940
     end
   end
+
+  describe "step 2" do
+    it "moon data equality" do
+      m1 = MoonData.new(Point.new(0,1,2), Velocity.new(3,4,5))
+      m2 = MoonData.new(Point.new(0,1,2), Velocity.new(3,4,5))
+      expect(m1 == m2).to eq true
+      set = Set.new([m1, m2])
+      expect(set.length).to eq 1
+    end
+
+    it "example 1" do
+      input = <<~INPUT
+        <x=-1, y=0, z=2>
+        <x=2, y=-10, z=-7>
+        <x=4, y=-8, z=8>
+        <x=3, y=5, z=-1>
+      INPUT
+      positions = parse_input(input)
+      expect(period(positions)).to eq 2772
+    end
+  end
 end
 
 def parse_expected(str)
@@ -81,6 +102,6 @@ end
 def parse_expected_line(line, index)
   regex = /pos=#{position_pattern}, vel=#{position_pattern}/
   px, py, pz, vx, vy, vz = regex.match(line).captures.map(&:to_i)
-  MoonData.new(index, Point.new(px, py, pz), Velocity.new(vx, vy, vz))
+  MoonData.new(Point.new(px, py, pz), Velocity.new(vx, vy, vz))
 end
 

@@ -39,8 +39,8 @@ class JupiterMoonSimulation
   end
 
   def step
-    apply_gravity
-    apply_velocity
+    @moons = apply_gravity
+    @moons = apply_velocity
   end
 
   def total_energy
@@ -54,28 +54,23 @@ class JupiterMoonSimulation
   end
 
   def apply_gravity
-    moons.combination(2).to_a.each do |m1, m2|
-      m1.apply_gravity_towards(m2)
-      m2.apply_gravity_towards(m1)
+    moons.map do |m1|
+      (moons - [m1]).reduce(m1) { |new_m1, m2| new_m1.apply_gravity_towards(m2) }
     end
   end
 
   def apply_velocity
-    positions.each.with_index { |p, i| p.apply_velocity(velocities[i]) }
-  end
-
-  def positions
-    moons.map { |moon| moon.pos }
-  end
-
-  def velocities
-    moons.map { |moon| moon.vel }
+    moons.map { |moon| moon.apply_velocity }
   end
 end
 
 MoonData = Struct.new(:pos, :vel) do
   def apply_gravity_towards(other)
-    vel.add(*pos.gravity_towards(other.pos))
+    new(pos, vel.add(*pos.gravity_towards(other.pos)))
+  end
+
+  def apply_velocity
+    new(pos.apply_velocity(vel), vel)
   end
 
   def total_energy
@@ -87,6 +82,10 @@ MoonData = Struct.new(:pos, :vel) do
   end
 
   private
+
+  def new(pos, vel)
+    self.class.new(pos, vel)
+  end
 
   def potential_energy
     sum_of_absolute_values(pos)
@@ -124,9 +123,13 @@ Point = Struct.new(:x, :y, :z) do
   end
 
   def apply_velocity(v)
-    self.x += v.u
-    self.y += v.v
-    self.z += v.w
+    new(x + v.u, y + v.v, z + v.w)
+  end
+
+  private
+
+  def new(x, y, z)
+    self.class.new(x, y, z)
   end
 end
 
@@ -144,9 +147,13 @@ Velocity = Struct.new(:u, :v, :w) do
   end
 
   def add(du, dv, dw)
-    self.u += du
-    self.v += dv
-    self.w += dw
+    new(u + du, v + dv, w + dw)
+  end
+
+  private
+
+  def new(u, v, w)
+    self.class.new(u, v, w)
   end
 end
 

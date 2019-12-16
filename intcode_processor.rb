@@ -46,6 +46,10 @@ class IntcodeProcessor
     !halted?
   end
 
+  def get_input
+    inputs.pop
+  end
+
   def add_input(input)
     @inputs.unshift(input)
   end
@@ -205,7 +209,7 @@ class Input < Operation
 
   def call(args, modes)
     addr = address_by_mode(args[0], modes[0])
-    processor.program[addr] = processor.inputs.pop
+    processor.program[addr] = processor.get_input
     advance_pointer(args.length)
   end
 end

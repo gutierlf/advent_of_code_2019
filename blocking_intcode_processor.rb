@@ -1,13 +1,17 @@
 require_relative "intcode_processor"
 
 class BlockingIntcodeProcessor < IntcodeProcessor
-  attr_accessor :input_source
+  def initialize(program, inputs, input_source)
+    super(program, inputs)
+    @input_source = input_source
+  end
 
   def get_input
-    if inputs.empty? && !input_source.nil?
-      input = input_source.call
-      add_input(input)
-    end
+    add_input(input_source.call) if inputs.empty?
     super
   end
+
+  private
+
+  attr_reader :input_source
 end

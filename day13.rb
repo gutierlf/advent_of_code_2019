@@ -4,35 +4,68 @@ class Game
   attr_reader :score
 
   def initialize(program)
-    @processor = BlockingIntcodeProcessor.new(program, [])
-  end
-
-  def test
-    processor.process_all
-    compute_tiles
+    input_source = yield self
+    @processor = BlockingIntcodeProcessor.new(program, [], input_source)
   end
 
   def start(&block)
-    processor.input_source = block
     processor.program[0] = 2
     processor.process_all
+    parse_program_output
   end
 
-  def step
-    compute_tiles
+  def tiles
+    parse_program_output
   end
 
-  def board
-    compute_tiles
-    grid.map do |row|
-      row.map do |type|
-        tile_chars.fetch(type)
-      end.join("")
+  def ball
+    col, row, _ = output_instructions
+                    .select { |_, _, id| id == TILE_TYPES.key(:ball) }
+                    .last
+    Point.new(col, row)
+  end
+
+  private
+
+  attr_reader :processor, :grid
+  attr_writer :score
+
+  def parse_program_output
+    output_instructions.reduce([]) do |tiles, (col, row, id)|
+      if [col, row] == [-1, 0]
+        self.score = id
+        tiles
+      else
+        tiles << Tile.new(Point.new(col, row), TILE_TYPES.fetch(id))
+      end
     end
   end
 
-  def board_size
-    @board_size || compute_board_size
+  def output_instructions
+    outputs.each_slice(3)
+  end
+
+  def outputs
+    processor.output
+  end
+
+  TILE_TYPES = {
+    0 => :empty,
+    1 => :wall,
+    2 => :block,
+    3 => :paddle,
+    4 => :ball,
+  }
+end
+
+class GameWithoutQuarters < Game
+  def initialize(program)
+    @processor = IntcodeProcessor.new(program, [])
+  end
+
+  def start
+    processor.process_all
+    parse_program_output
   end
 
   def empties
@@ -57,36 +90,6 @@ class Game
 
   private
 
-  attr_reader :processor,:tiles, :grid
-  attr_writer :score
-
-  def compute_board_size
-    positions = tiles.map(&:position)
-    rows = positions.map(&:row).max + 1
-    cols = positions.map(&:col).max + 1
-    @board_size = [cols, rows]
-  end
-
-  def compute_tiles
-    @tiles = outputs.each_slice(3).reduce([]) do |tiles, (col, row, id)|
-      if [col, row] == [-1, 0]
-        self.score = id
-        tiles
-      else
-        tiles << Tile.new(Point.new(col, row), TILE_TYPES.fetch(id))
-      end
-    end
-    cols, rows = board_size
-    @grid = tiles.reduce(Array.new(rows) { Array.new(cols) }) do |grid, tile|
-      grid[tile.position.row][tile.position.col] = tile.type
-      grid
-    end
-  end
-
-  def outputs
-    processor.output
-  end
-
   def tiles_by_type
     tiles_by_position.reduce({}) do |tiles_by_type, (position, type)|
       tiles_by_type[type] = tiles_by_type.fetch(type, []) << position
@@ -100,14 +103,51 @@ class Game
       tiles_by_position
     end
   end
+end
 
-  TILE_TYPES = {
-    0 => :empty,
-    1 => :wall,
-    2 => :block,
-    3 => :paddle,
-    4 => :ball,
-  }
+class GamePresenter
+  def initialize(game)
+    @game = game
+  end
+
+  def present
+    puts board
+  end
+
+  private
+
+  attr_reader :game
+
+  def board
+    grid.map do |row|
+      row.map do |type|
+        tile_chars.fetch(type)
+      end.join("")
+    end.join("\n")
+  end
+
+  def grid
+    game.tiles.reduce(empty_grid) do |grid, tile|
+      grid[tile.position.row][tile.position.col] = tile.type
+      grid
+    end
+  end
+
+  def empty_grid
+    cols, rows = board_size
+    Array.new(rows) { Array.new(cols) }
+  end
+
+  def board_size
+    @board_size ||= compute_board_size
+  end
+
+  def compute_board_size
+    positions = game.tiles.map(&:position)
+    rows = positions.map(&:row).max + 1
+    cols = positions.map(&:col).max + 1
+    [cols, rows]
+  end
 
   def tile_chars
     {
@@ -123,19 +163,15 @@ end
 Tile = Struct.new(:position, :type)
 Point = Struct.new(:col, :row)
 
-class AI
+class AIInputSource
   def initialize(game)
     @game = game
     @preamble = [0, 0, 0]
   end
 
-  def next_move
+  def call
     track_ball
-    if preamble.empty?
-      main_strategy
-    else
-      preamble.pop
-    end
+    preamble.pop || main_strategy
   end
 
   private
@@ -145,37 +181,25 @@ class AI
 
   def track_ball
     self.previous_ball = current_ball
-    balls = game.balls
-    self.current_ball = balls.last.col
+    self.current_ball = game.ball.col
     return if previous_ball.nil?
     self.ball_direction = current_ball - previous_ball
   end
 
   def main_strategy
-    # paddle = game.paddles.last.col
-
     ball_direction
   end
 end
 
 if __FILE__ == $0
   program = File.read("day13_input.txt").chomp.split(",").map(&:to_i)
-  game = Game.new(program)
-  game.test
+  game = GameWithoutQuarters.new(program)
+  game.start
   answer1 = game.blocks.length # => 341
   puts answer1
 
-  def draw(g)
-    g.board.join("\n")
-  end
-
-  game = Game.new(program)
-  ai = AI.new(game)
-  game.start do
-    game.step
-    ai.next_move
-  end
-  game.step
+  game = Game.new(program) { |g| AIInputSource.new(g) }
+  game.start
   answer2 = game.score # => 17138
   puts answer2
 end

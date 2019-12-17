@@ -1,10 +1,10 @@
 require "rspec"
 require_relative "day13"
 
-class TestableGame < Game
+class TestableGame < GameWithoutQuarters
   attr_accessor :outputs
   def start
-    compute_tiles
+    parse_program_output
   end
 end
 
